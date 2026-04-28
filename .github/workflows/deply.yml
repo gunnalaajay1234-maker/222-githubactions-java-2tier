@@ -19,82 +19,70 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd="pg_isready -U postgres"
-          --health-interval=10s
+          --health-interval=5s
           --health-timeout=5s
-          --health-retries=5
+          --health-retries=10
 
     steps:
-      # ✅ Checkout code
+      # ✅ Checkout
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      # ✅ Setup Java
-      - name: Setup Java 17
+      # ✅ Java
+      - name: Setup Java
         uses: actions/setup-java@v3
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: 17
 
-      # ✅ Debug repo structure
-      - name: Show Repo Structure
-        run: ls -R
-
-      # ✅ Build project (IMPORTANT: inside app folder)
-      - name: Build Project
+      # ✅ Build
+      - name: Build
         run: |
           cd app
           mvn clean package -DskipTests
 
-      # ✅ Verify JAR exists
-      - name: Verify JAR
-        run: |
-          ls -l app/target
-
-      # ✅ Wait for PostgreSQL (FIXED)
+      # ✅ Wait for DB
       - name: Wait for DB
         run: |
-          echo "Waiting for PostgreSQL..."
           for i in {1..20}; do
-            nc -z localhost 5432 && echo "DB Ready" && break
-            echo "Waiting..."
+            nc -z 127.0.0.1 5432 && echo "DB Ready" && break
+            echo "Waiting DB..."
             sleep 5
           done
 
-      # ✅ Start Spring Boot App
-      - name: Start Application
+      # ✅ Start App
+      - name: Start App
         run: |
           cd app
-          nohup java -jar target/*.jar --debug > app.log 2>&1 &
-          sleep 45
+          nohup java -jar target/*.jar > app.log 2>&1 &
+          sleep 40
 
-          echo "========= APP LOG ========="
-          cat app.log || true
+          echo "===== LOGS ====="
+          cat app.log
 
-          echo "========= RUNNING JAVA ========="
-          ps -ef | grep java || true
+      # ✅ CHECK PORT (IMPORTANT DEBUG)
+      - name: Check Port
+        run: |
+          netstat -tulnp | grep 8080 || echo "PORT NOT OPEN"
 
-          echo "========= PORT STATUS ========="
-          netstat -tulnp || true
-
-      # ✅ Wait for App to Start
-      - name: Wait for App
+      # ✅ Health Check
+      - name: Health Check
         run: |
           for i in {1..15}; do
-            echo "Attempt $i..."
-            curl -f http://localhost:8080 && exit 0
+            echo "Attempt $i"
+            curl -v http://127.0.0.1:8080 && exit 0
             sleep 5
           done
-          echo "App failed to start"
+          echo "App failed"
           exit 1
 
-      # ✅ Test POST API
-      - name: Test POST API
+      # ✅ TEST API
+      - name: POST API
         run: |
-          curl -X POST http://localhost:8080/api/employees \
+          curl -X POST http://127.0.0.1:8080/api/employees \
           -H "Content-Type: application/json" \
           -d '{"name":"Ajay","email":"ajay@test.com","department":"DevOps","salary":50000}'
 
-      # ✅ Test GET API
-      - name: Test GET API
+      - name: GET API
         run: |
-          curl http://localhost:8080/api/employees
+          curl http://127.0.0.1:8080/api/employees
