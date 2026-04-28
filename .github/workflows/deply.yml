@@ -24,19 +24,15 @@ jobs:
           --health-retries=5
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Show Structure
-        run: ls -R
+      - run: ls -R
 
-      - name: Setup Java
-        uses: actions/setup-java@v3
+      - uses: actions/setup-java@v3
         with:
           distribution: temurin
           java-version: 17
 
-      # ✅ FIXED PATH
       - name: Build
         run: mvn clean package -DskipTests
         working-directory: ./app
@@ -44,17 +40,21 @@ jobs:
       - name: Start App
         run: |
           nohup java -jar target/*.jar > app.log 2>&1 &
-          sleep 20
+          sleep 40
+        working-directory: ./app
+
+      - name: Show Logs
+        run: cat app.log
         working-directory: ./app
 
       - name: Health Check
         run: curl -f http://localhost:8080
 
-      - name: Test API
+      - name: Test POST API
         run: |
           curl -X POST http://localhost:8080/api/employees \
           -H "Content-Type: application/json" \
           -d '{"name":"Ajay","email":"ajay@test.com","department":"DevOps","salary":50000}'
 
-      - name: Get API
+      - name: Test GET API
         run: curl http://localhost:8080/api/employees
