@@ -1,8 +1,8 @@
-name: Java CI Test + DB Connection
+name: Java CI/CD with PostgreSQL
 
 on:
   push:
-    branches: ["main"]
+    branches: [ "main" ]
 
 jobs:
   build:
@@ -12,77 +12,65 @@ jobs:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_DB: employeedb
+          POSTGRES_DB: employee_db
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
         ports:
           - 5432:5432
         options: >-
           --health-cmd="pg_isready -U postgres"
-          --health-interval=5s
+          --health-interval=10s
           --health-timeout=5s
-          --health-retries=10
+          --health-retries=5
 
     steps:
-      # ✅ Checkout
-      - name: Checkout Code
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # ✅ Java
-      - name: Setup Java
-        uses: actions/setup-java@v3
+      - name: Set up Java
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      # ✅ Build
-      - name: Build
-        run: |
-          cd app
-          mvn clean package -DskipTests
+      - name: Build app
+        run: mvn clean package -DskipTests
 
-      # ✅ Wait for DB
-      - name: Wait for DB
+      # ✅ WAIT for DB properly
+      - name: Wait for PostgreSQL
         run: |
           for i in {1..20}; do
-            nc -z 127.0.0.1 5432 && echo "DB Ready" && break
-            echo "Waiting DB..."
-            sleep 5
+            nc -z localhost 5432 && echo "DB Ready" && exit 0
+            echo "Waiting for DB..."
+            sleep 3
           done
+          echo "DB not ready" && exit 1
 
-      # ✅ Start App
-      - name: Start App
+      # ✅ RUN APP WITH ENV VARIABLES (CRITICAL FIX)
+      - name: Run Spring Boot App
         run: |
           cd app
           nohup java -jar target/*.jar > app.log 2>&1 &
-          sleep 40
+        env:
+          DB_HOST: localhost
+          DB_NAME: employee_db
+          DB_USER: postgres
+          DB_PASSWORD: postgres
 
-          echo "===== LOGS ====="
-          cat app.log
-
-      # ✅ CHECK PORT (IMPORTANT DEBUG)
-      - name: Check Port
+      # ✅ DEBUG LOGS
+      - name: Show logs
         run: |
-          netstat -tulnp | grep 8080 || echo "PORT NOT OPEN"
+          sleep 20
+          echo "===== LOGS ====="
+          cat app/app.log
 
-      # ✅ Health Check
+      # ✅ HEALTH CHECK
       - name: Health Check
         run: |
-          for i in {1..15}; do
-            echo "Attempt $i"
-            curl -v http://127.0.0.1:8080 && exit 0
+          for i in {1..20}; do
+            curl -f http://localhost:8080 && exit 0
+            echo "Waiting for app..."
             sleep 5
           done
           echo "App failed"
           exit 1
-
-      # ✅ TEST API
-      - name: POST API
-        run: |
-          curl -X POST http://127.0.0.1:8080/api/employees \
-          -H "Content-Type: application/json" \
-          -d '{"name":"Ajay","email":"ajay@test.com","department":"DevOps","salary":50000}'
-
-      - name: GET API
-        run: |
-          curl http://127.0.0.1:8080/api/employees
