@@ -24,27 +24,58 @@ jobs:
           --health-retries=5
 
     steps:
-      - name: Checkout
+      # ✅ Checkout
+      - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Setup Java
+      # ✅ Java Setup
+      - name: Setup Java 17
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Build
+      # ✅ Verify project structure
+      - name: Show Repo
+        run: ls -R
+
+      # ✅ Build
+      - name: Build Project
         run: |
           cd app
           mvn clean package -DskipTests
 
-      - name: Start App
+      # ✅ Check JAR
+      - name: Verify JAR
+        run: |
+          ls -l app/target
+
+      # ✅ Wait for PostgreSQL (CRITICAL FIX)
+      - name: Wait for DB
+        run: |
+          echo "Waiting for PostgreSQL..."
+          for i in {1..12}; do
+            pg_isready -h postgres -p 5432 && break
+            sleep 5
+          done
+
+      # ✅ Start Application with logs
+      - name: Start Application
         run: |
           cd app
-          nohup java -jar target/*.jar > app.log 2>&1 &
-          sleep 40
-          cat app.log
+          nohup java -jar target/*.jar --debug > app.log 2>&1 &
+          sleep 30
 
+          echo "========= APP LOG ========="
+          cat app.log || true
+
+          echo "========= JAVA PROCESS ========="
+          ps -ef | grep java || true
+
+          echo "========= PORT CHECK ========="
+          netstat -tulnp || true
+
+      # ✅ Health Check (Retry)
       - name: Wait for App
         run: |
           for i in {1..12}; do
@@ -52,8 +83,10 @@ jobs:
             curl -f http://localhost:8080 && exit 0
             sleep 5
           done
+          echo "App failed to start"
           exit 1
 
+      # ✅ API TEST
       - name: Test POST API
         run: |
           curl -X POST http://localhost:8080/api/employees \
