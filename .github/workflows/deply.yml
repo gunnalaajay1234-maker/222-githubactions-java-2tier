@@ -27,50 +27,52 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 🔥 DEBUG STEP (don’t remove)
+      - name: Show project structure
+        run: |
+          echo "===== ROOT ====="
+          ls -la
+          echo "===== APP ====="
+          ls -la app || echo "NO APP FOLDER"
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
+      # ✅ CORRECT BUILD (THIS FIXES YOUR ERROR)
       - name: Build app
+        working-directory: app
         run: mvn clean package -DskipTests
 
-      # ✅ WAIT for DB properly
       - name: Wait for PostgreSQL
         run: |
           for i in {1..20}; do
             nc -z localhost 5432 && echo "DB Ready" && exit 0
-            echo "Waiting for DB..."
             sleep 3
           done
-          echo "DB not ready" && exit 1
+          exit 1
 
-      # ✅ RUN APP WITH ENV VARIABLES (CRITICAL FIX)
+      # ✅ RUN APP
       - name: Run Spring Boot App
-        run: |
-          cd app
-          nohup java -jar target/*.jar > app.log 2>&1 &
+        working-directory: app
+        run: nohup java -jar target/*.jar > app.log 2>&1 &
         env:
           DB_HOST: localhost
           DB_NAME: employee_db
           DB_USER: postgres
           DB_PASSWORD: postgres
 
-      # ✅ DEBUG LOGS
       - name: Show logs
         run: |
           sleep 20
-          echo "===== LOGS ====="
           cat app/app.log
 
-      # ✅ HEALTH CHECK
       - name: Health Check
         run: |
           for i in {1..20}; do
             curl -f http://localhost:8080 && exit 0
-            echo "Waiting for app..."
             sleep 5
           done
-          echo "App failed"
           exit 1
