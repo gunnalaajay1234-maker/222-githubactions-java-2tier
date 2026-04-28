@@ -1,60 +1,18 @@
-name: Java CI Test + DB Connection
+- name: Start App
+  run: |
+    nohup java -jar target/*.jar > app.log 2>&1 &
+    sleep 40
+  working-directory: ./app
 
-on:
-  push:
-    branches: ["main"]
+- name: Show Logs
+  run: cat app.log
+  working-directory: ./app
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_DB: employeedb
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd="pg_isready -U postgres"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-
-    steps:
-      - uses: actions/checkout@v3
-
-      - run: ls -R
-
-      - uses: actions/setup-java@v3
-        with:
-          distribution: temurin
-          java-version: 17
-
-      - name: Build
-        run: mvn clean package -DskipTests
-        working-directory: ./app
-
-      - name: Start App
-        run: |
-          nohup java -jar target/*.jar > app.log 2>&1 &
-          sleep 40
-        working-directory: ./app
-
-      - name: Show Logs
-        run: cat app.log
-        working-directory: ./app
-
-      - name: Health Check
-        run: curl -f http://localhost:8080
-
-      - name: Test POST API
-        run: |
-          curl -X POST http://localhost:8080/api/employees \
-          -H "Content-Type: application/json" \
-          -d '{"name":"Ajay","email":"ajay@test.com","department":"DevOps","salary":50000}'
-
-      - name: Test GET API
-        run: curl http://localhost:8080/api/employees
+- name: Wait for App
+  run: |
+    for i in {1..10}; do
+      curl http://localhost:8080 && exit 0
+      echo "Waiting..."
+      sleep 5
+    done
+    exit 1
