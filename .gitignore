@@ -7,3 +7,5 @@ override.tf.json
 terraform.tfvars
 *.tfvars
 .terraform.lock.hcl
+*.pem
+*.pem

@@ -16,11 +16,9 @@ provider "aws" {
 # If you want statefile to store in Storage account use it else remove
 terraform {
   backend "s3" {
-    bucket         = "ajay-terraform-state-bucket-123"
-    key            = "terraform.tfstate"
-    region         = "ap-south-1"
-    encrypt        = true
-    use_lockfile = true
-
+    bucket  = var.bucket_name
+    key     = "terraform.tfstate"
+    region  = var.region
+    encrypt = true
   }
 }
